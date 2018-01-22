@@ -40,7 +40,7 @@ for song in songs:
         y.append(words[i+SEQ_LENGTH])
     text += ' ' + song
 
-#TRAIN WORD2VEC MODEL (future improvement: save network weights in train.py to save time)
+#LOAD PRETRAINED WEIGHTS
 word_model = gensim.models.Word2Vec.load('trained_word2vec')
 word2vec_weights = word2vec_model.wv.syn0
 vocab_size, embedding_layer_size = word2vec_weights.shape
