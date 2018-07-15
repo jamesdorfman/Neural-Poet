@@ -2,9 +2,14 @@
 Rap from an LSTM Recurrent Neural Network trained on the discography of Nas
 
 ### Project setup
-Make sure you have keras, numpy and gensim installed.
-Then, either run train.py to generate new weights, or use the weights which were pretrained on a Google Cloud Compute VM for one hour.
-Then, run predict.py
+Use a package manager like `pip` to install the following dependencies:
+* `Numpy`<br />
+* `Pandas`<br />
+* `Tensorflow`<br />
+* `Keras`<br />
+* `Gensim`<br />
+
+Then, run `predict.py` to sample the rap language model. Run `train.py` first if you would like to train the RNN's weights.
 
 # FAQ
 
