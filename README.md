@@ -33,5 +33,5 @@ The corpus used to train the model consisted of over 20k words. Storing the indi
 The embedding layer (the first layer in the network) takes in a word ID and outputs that word's Word2Vec embedding. This largly reduces the size of the training set, as it allows each high-dimensional vector to be replaced with a single integer ID.
 
 # Acknowledgements
-This project was inspired by Andrej Karparthy's infamous blog post: http://karpathy.github.io/2015/05/21/rnn-effectiveness/ 
-Andrej trained a recurrent neural network to read in text character-by-character, and predict the next character that would appear. I decided to try to predict text word-by-word, and incoporating Word2Vec embeddings, in order ot produce more coherent sentances
+This project was inspired by Andrej Karparthy's infamous blog post: http://karpathy.github.io/2015/05/21/rnn-effectiveness/ <br>
+Andrej trained an RNN to read text character-by-character, and predict the next character that would appear. I decided to build a network that processes text word-by-word, and incoporates Word2Vec embeddings, presuming that this would produce more coherent sentances.
