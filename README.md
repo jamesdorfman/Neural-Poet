@@ -1,5 +1,11 @@
-# NeuralRap
-Rap from an LSTM Recurrent Neural Network trained on the discography of Nas
+# Neural Rap
+A Word-level Recurrent Neural Network trained on the discography of Nas
+
+Sample rap lines produced by the network:
+
+` The way I poisoned you to throw out rules of rap`
+
+` I'm the only one that carries that vision`
 
 ### Project setup
 Use a package manager like `pip` to install the following dependencies:
@@ -13,25 +19,19 @@ Then, run `predict.py` to sample the rap language model. Run `train.py` first if
 
 # FAQ
 
-### Why does the network have trouble maintaining coherent thought?
-Nas' rhymes have been studied in academia because he displays a level of verbal skill rarely seen in rap. He has a wide ranging vocabulary which makes extremely difficult for the network to learn his style. Furthmore, this network was trained using Google's Cloud Compute Servers. More training requires more server time, and server time is expensive!
+### Why does the network unable to maintain a coherent stream of thought?
+Nas is famous for his intricate and complex rhyme schemes. In fact, his rhymes  have even been studied formally in academia. This wide ranging vocabulary makes it difficult for even complex models like RNNs to properly understand the long-range dependencies in his sentances.
+Furthmore, this network was only trained for a short amount of time , since compute time is expensive!
 
-### What inspired this project?
-This project was inspired by Andrej Karparthy's infamous blog post: http://karpathy.github.io/2015/05/21/rnn-effectiveness/ 
-Andrej trained a recurrent neural network to read in text character-by-character, and predict the next character that would appear. I decided to try to predict text word-by-word to see if I could get better results
-
-### What is a neural network?
-Machine Learning is all about creating models to predict things. Often, simple models will suffice. A well-known example of this is linear regression, which trains a model to predict an unknown class, such as the price of a house, from known values like the number of rooms and the size of the backyard. This model is very popular and simple to understand.
+### Why use an RNN?
 However, sometimes such simple models aren't good enough. There are many complex features of the data that are intricately connected and the models are unable to find relationships
 
 A neural network is essentially just specific model which is able to learn very complex relationships in data, often even creating its own features for the data!
 
-### What problems did you face during this project?
-The biggest problem I faced was the size of the corpus used to train the network. When predicting text character-by-character, the network has much less possiblities for the next character, then when predicting text word-by-word, as this specific corpus had ~20,000 unique words
+### What is the purpose of an embedding layer?
+The corpus used to train the model consisted of over 20k words. Storing the individual Word2Vec embeddings for each word requires a lot of storage space and slows down training.
+The embedding layer (the first layer in the network) takes in a word ID and outputs that word's Word2Vec embedding. This largly reduces the size of the training set, as it allows each high-dimensional vector to be replaced with a single integer ID.
 
-### How did you solve these problems?
-I originally tried using a popular technique called one-hot-encoding to categorize each word. However, this involved creating a vector with 20,000 numbers for each word, with 19,999 of these numbers being 0, and one of them being 1. This was very inefficient, and my computer had trouble storing such a large data set I ended up encoding each word with its own integer, 
-So instead of inputting words as numbers and trying to get the network to learn their relationships, I first used the Gensim library to create an 100 dimensional vector for each word. These vectors are special because, unlike one-hot-encoding which doesn't contain any relational information about the word, these Word2Vec vectors contain lots of relational information. In fact, they even allow for cool operations like substracting two words from eachother, and getting an answer. For example, my model said that king - girl = queen !
-
-The benefit of this model was that not only did it shrink the size of the input to the model, but by creating an embedding layer in the network containing these 100-Dimensional vectors, I was able to store each word as an individual integer which was decoded into its Word2Vec vector after going through the embedding layer. This allowed me to transform each sequence of text into a list of numbers, which largly reduced the size of the dataset. Furthermore, the relationsal aspect of the Word2Vec model yielded better results.
-
+# Acknowledgements
+This project was inspired by Andrej Karparthy's infamous blog post: http://karpathy.github.io/2015/05/21/rnn-effectiveness/ 
+Andrej trained a recurrent neural network to read in text character-by-character, and predict the next character that would appear. I decided to try to predict text word-by-word, and incoporating Word2Vec embeddings, in order ot produce more coherent sentances
