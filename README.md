@@ -3,9 +3,13 @@ A Word-level Recurrent Neural Network trained on the discography of Nas
 
 Sample rap lines produced by the network:
 
-` The way I poisoned you to throw out rules of rap`
+* ` The way I poisoned you to throw out rules of rap`
 
-` I'm the only one that carries that vision`
+* ` I'm the only one that carries that vision`
+
+It even learned to incorporate inline rhymes:
+
+* `First foreigner's son she tried to stop just popped`
 
 ### Project setup
 Use a package manager like `pip` to install the following dependencies:
