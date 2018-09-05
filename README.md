@@ -31,7 +31,7 @@ Recurrent neurons differ from regular neurons because they are able to take sequ
 
 **Note**: tests using the Gated Recurrent Unit (GRU) produced very similar results
 
-### Incorporating Word2Vec
+### Incorporating word embeddings
 Words are typically one-hot-encoded or encoded with integer indeces for input into neural networks. When humans read text they already have a language model in their brains that provides them with contextual information about each word (such as how Beijing and Shenghei refer to similar locations). However, these simple encoding methods treat each word like an individual entity, forcing the network to learn this contextual information on its own. Unfortunately, the network is bad at learning this information since it is being trained on an entirely seperate task (predicting the next word in a sequence).
 
 
