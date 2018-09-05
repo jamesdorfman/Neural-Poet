@@ -1,64 +1,96 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 '''
-Created by James Dorfman (github.com/jamesdorfman)
+Train the RNN poetry language model
 '''
 
-import string
-from rap_models import Word2VecModel
-from rap_models import RapRNNModel
 import re
+import string
+import sys
+import pickle
+
+from collections import Counter
 
 import numpy as np
 import pandas as pd
 
 from keras.layers import Embedding
 from keras.preprocessing.sequence import pad_sequences
+from tensorflow import logging
 
-# Get lyrics
-file_path = 'nas_lyrics.txt'
-text = open(file_path, 'r', encoding="utf8").read().lower()
-text = text.replace('<seperate>',' ') # In the text file, all songs are seperated by <seperate>
+from constants import *
+from models import PoetryRNNModel, Word2VecModel
 
-# Remove punctuation from songs
-lines = text.split('\n')
-lines = [re.sub(r'[^\w\s]', '', line) for line in lines]
+__author__ = "James Dorfman (github.com/jamesdorfman)"
+__copyright__ = "Copyright 2018, James Dorfman"
+__license__ = "GNU"
 
-filtered_lines = []
-for line in lines:
-    # We don't want lines that are too short (meaningless) or too big ()
-    if len(line.split()) >= 10 and len(line.split()) < 40:
-        filtered_lines.append(line)
-split_lines = [line.split() for line in filtered_lines]
+logging.set_verbosity(logging.ERROR)
 
-max_len = 0
-for line in split_lines:
-    if len(line) > max_len:
-        max_len = len(line)
+WORDS_BETWEEN_SEQUENCES = 1
+# Number of training epochs
+try:
+    EPOCHS = int(sys.argv[1])
+except Exception as e:
+    EPOCHS = 100
 
-print('training Word2Vec model...')
-w2vModel = Word2VecModel()
-w2vModel.fit(split_lines)
+# Get poems
+text = open('poems.txt', 'r', encoding="utf8").read().lower()
+poems = [ t.replace('\n',' <NEWLINE> ') + ' <END>' for t in text.split('\n\n') ]
+frequent_words = set([k for k, v in Counter(text).items() if v >= 3]) # Words not in here will be encoded with <UKN>
 
-most_similar = ', '.join('%s (%.2f)' % (similar, dist) for similar, dist in w2vModel.model.most_similar("maybe")[:8])
-print('  %s -> %s' % ("maybe", most_similar))
+pretrained_vectors = open('word2vec.50d.filtered_for_poetry.txt','r',encoding='utf8')
+w2vModel = Word2VecModel(embedding_size=50)
 
-lines_ix = []
-for line in split_lines:
+for line in pretrained_vectors:
+    if len(line) > 0:
+        word = line.split()[0]
+        embedding = line.split()[1:]
+        w2vModel.add(word, embedding)
+
+# The custom tokens in poems.txt are not present in the pretrained embeddings
+# Create vectors for them and add them to the model
+w2vModel.add('<UKN>', [0 for i in range(50)]) # Assign <UKN> the 0 vector
+w2vModel.add('<END>', [10 for _ in range(50)]) # <END> can be assigned any arbitrary vector, since it it only every terminates sequences
+w2vModel.add('<NEWLINE>', [5 for _ in range(50)]) # We don't have a pretrained vector for <NEWLINE>, so we will assign it an arbitrary one and rely on backpropogation to tune it (since the embedding layer's weights are trainable)
+
+# Convert all poems (lists of words) to lists of indices
+poems_ix = []
+for poem in poems:
     cur_ix = []
-    for word in line:
-        if word in w2vModel.word_to_index.keys():
+    for word in poem.split():
+        if word in w2vModel.word_to_index:
             cur_ix.append(w2vModel.word_to_index[word])
         else:
             cur_ix.append(w2vModel.word_to_index['<UKN>'])
-    lines_ix.append(cur_ix)
+    poems_ix.append(cur_ix)
 
+# Create training examples from each poem
+# Each training example is the (X, y) pair (30 word sequence from poem, 31st word of sequence)
+# If a sequence is less than 30 words long, it is padded with 0s
 X = []
 y = []
-for line in lines_ix:
-    for i in range(1,len(line)):
-        X.append(line[:i])
-        y.append(line[i])
-X = pad_sequences(X, maxlen=max_len, padding='post')
+for poem in poems_ix:
+    i = 0
+    while i < len(poem):
+        start = max(i - SEQ_LEN, 0)
+        X.append(poem[start:i])
+        y.append(poem[i])
+        i += WORDS_BETWEEN_SEQUENCES
+X = pad_sequences(X, maxlen=SEQ_LEN, padding='post')
 y_onehot = np.array(pd.get_dummies(y))
 
-rnn = RapRNNModel(max_len, len(list(set(y))), w2vModel)
-rnn.fit(X, y_onehot)
+print('\nTRAINING LANGUAGE MODEL')
+print('-' * 50)
+
+rnn = PoetryRNNModel(SEQ_LEN, len(list(set(y))), w2vModel)
+
+# Pickle and save the PoetryRNNModel object (model architecture + w2vModel)
+# This lets us  access it when making predictions, in `predict.py`
+with open(RNN_PICKLE_FILE, 'wb') as pickle_output:
+    pickle.dump(rnn, pickle_output, pickle.HIGHEST_PROTOCOL)
+
+rnn.init_model() # Must be called after pickling the object - embedding layers can't be pickled
+
+rnn.fit(X, y_onehot, epochs=EPOCHS)
