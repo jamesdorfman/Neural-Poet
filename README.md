@@ -50,4 +50,3 @@ The network is seeded with the zero vector. It then roduces a probability distri
 ### Acknowledgements
 This project was inspired by Andrej Karparthy's infamous blog post: http://karpathy.github.io/2015/05/21/rnn-effectiveness/ 
 Andrej trained an RNN to read text character-by-character and predict the next character that would appear. I decided to iterate on this method by building a network to processes text word-by-word. This allowed me to incoporate Word2Vec embeddings and produce more coherent sentances.
-
