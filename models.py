@@ -51,7 +51,7 @@ class Word2VecModel:
             iter=num_iterations
         )
 
-        w2v_model.save('word2vec_weights.model')
+        w2v_model.save('res/word2vec_weights.model')
 
         self.model = w2v_model
         self.extract_w2v_dicts()
@@ -139,7 +139,7 @@ class PoetryRNNModel:
 
         try:
             trained_model = model
-            model_weights_file = 'model_weights.h5'
+            model_weights_file = 'res/model_weights.h5'
             trained_model.load_weights(model_weights_file)
             model = trained_model
             print('Using pretrained weights from the file ',model_weights_file)
@@ -168,7 +168,7 @@ class PoetryRNNModel:
             print('\nTRAINING EPOCHS ', epochs_so_far + 1, '-',epochs_so_far + intermediate_epochs)
             print('-' * 50)
             self.rnn_model.fit(X, y, batch_size=128, epochs=intermediate_epochs)
-            self.rnn_model.save_weights('model_weights.h5', overwrite=True)
+            self.rnn_model.save_weights('res/model_weights.h5', overwrite=True)
             
             print('Language model sample:')
             print(self.sample())

@@ -36,11 +36,11 @@ except Exception as e:
     EPOCHS = 100
 
 # Get poems
-text = open('poems.txt', 'r', encoding="utf8").read().lower()
-poems = [ t.replace('\n',' <NEWLINE> ') + ' <END>' for t in text.split('\n\n') ]
+text = open('res/poems.txt', 'r', encoding="utf8").read().lower()
+poems = [ t.replace('\n', ' <NEWLINE> ') + ' <END>' for t in text.split('\n\n') ]
 frequent_words = set([k for k, v in Counter(text).items() if v >= 3]) # Words not in here will be encoded with <UKN>
 
-pretrained_vectors = open('word2vec.50d.filtered_for_poetry.txt','r',encoding='utf8')
+pretrained_vectors = open('res/word2vec.50d.filtered_for_poetry.txt', 'r', encoding='utf8')
 w2vModel = Word2VecModel(embedding_size=50)
 
 for line in pretrained_vectors:
