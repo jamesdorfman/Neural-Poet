@@ -131,7 +131,7 @@ class PoetryRNNModel:
             if elem.device_type == 'GPU':
                 use_gpu = True
         if use_gpu:
-            model.add(CuDNNLSTM(100, return_sequences=False))
+            model.add(CuDNNLSTM(100, kernel_regularizer=regularizers.l2(0.01), recurrent_regularizer=regularizers.l2(0.01), bias_regularizer=regularizers.l2(0.01), return_sequences=False))
         else:
             model.add(LSTM(100, kernel_regularizer=regularizers.l2(0.01), recurrent_regularizer=regularizers.l2(0.01), bias_regularizer=regularizers.l2(0.01), return_sequences=False))
         model.add(Dense(self.num_targets, activation='softmax'))
