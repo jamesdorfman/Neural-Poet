@@ -3,6 +3,7 @@ Models for text generation
 '''
 
 import string
+import time
 
 import numpy as np
 import pandas as pd
@@ -18,6 +19,7 @@ __copyright__ = "Copyright 2017-present"
 __license__ = "GNU"
 __version__ = "1.2"
 
+import tensorflow as tf
 class Word2VecModel:
 
     def __init__(self, model = None, embedding_size=50):
@@ -92,39 +94,70 @@ class Word2VecModel:
         
 class PoetryRNNModel:
 
-    def __init__(self, seq_len, num_targets, w2vModel):
+    '''
+    This class can train/sample a pure Tensorflow model or a Keras Tensorflow model:
+        
+    The pure TensorFlow model was built to replace the Keras model as it is more customizable.
+    Although the TensorFlow model works just as well as the Keras model, it is significantly slower to train on CPU
+    This is because the Keras API is optimized very well.
+    I am working on further optimizing the TensorFlow code so that it can replace the Keras model.
+    '''
+
+    def __init__(self, seq_len, num_targets, w2vModel, batch_size=128, model_api='keras'):
         '''
         w2vModel: A trained Word2VecModel object
         seq_len: Every training example must have this length
         num_targets: Number of possible prediction targets. The Softmax layer will have this many outputs
-        
+        model_api: One of ['keras', 'tensorflow'], determines the API used to construct the actual RNN model
+
         NOTE: Call self.init_model to initalize the actual RNN model.
               Models with embedding layers cause IOErrors when pickled, so moving this functionality
               to a dedicated method enables pickling of class instances.
         '''
 
+
         self.seq_len = seq_len
         self.num_targets = num_targets
         self.w2vModel = w2vModel
+        self.batch_size = batch_size
+        if model_api == 'keras':
+            self.keras = True
+        else:
+            self.keras = False
 
     def init_model(self):
+        self.init_embedding_matrix()
+        if self.keras:
+            self.init_keras_model()
+        else:
+            self.init_tensorflow_model()
+
+    def init_embedding_matrix(self):
+        '''
+        Initializes a matrix with word embeddings for each word in the corpus.
+        This makes model training more efficient, since each word in a batch 
+        takes up store 1/embedding_size as much space in RAM
+        
+        Matrix is stored in self.wv_matrix
+        '''
+        self.n_words = len(self.w2vModel.word_to_embedding)
+        self.embedding_size = self.w2vModel.embedding_size
+
+        self.wv_matrix = (np.random.rand(self.n_words, self.embedding_size) - 0.5) / 5.0 # Randomly initialize matrix, in case a word doesn't have a pre-trained embedding
+        for i in range(self.n_words):
+            embedding = self.w2vModel.word_to_embedding[self.w2vModel.index_to_word[i]]
+            if embedding is not None:
+                self.wv_matrix[i] = embedding
+
+    def init_keras_model(self):
         '''
         Creates the model 
             embedding layer -> LSTM layer -> Softmax layer
         This model is then assigned to self.model
-        '''
-
-        n_words = len(self.w2vModel.word_to_embedding)
-        embedding_size = self.w2vModel.embedding_size
-
-        wv_matrix = (np.random.rand(n_words, embedding_size) - 0.5) / 5.0 # Randomly initialize matrix, in case a word doesn't have a pre-trained embedding
-        for i in range(n_words):
-            embedding = self.w2vModel.word_to_embedding[self.w2vModel.index_to_word[i]]
-            if embedding is not None:
-                wv_matrix[i] = embedding   
+        '''  
 
         model = Sequential()
-        model.add(Embedding(len(wv_matrix), len(wv_matrix[0]), mask_zero=False, weights=[wv_matrix], input_length=self.seq_len, trainable=True))
+        model.add(Embedding(len(self.wv_matrix), len(self.wv_matrix[0]), mask_zero=False, weights=[self.wv_matrix], input_length=self.seq_len, trainable=True))
 
         use_gpu = False
         for elem in device_lib.list_local_devices():
@@ -148,7 +181,61 @@ class PoetryRNNModel:
 
         self.rnn_model = model
 
-    def fit(self, X, y, batch_size = 128, epochs = 50):
+    def init_tensorflow_model(self):
+        '''
+        Creates the model 
+            embedding layer -> LSTM layer -> Softmax layer
+        This model is then assigned to self.model
+        '''
+
+        inputs = tf.placeholder(tf.int32, [None,None])
+        labels = tf.placeholder(tf.int32, [None, None], name='labels')
+
+        embedding = tf.get_variable("embedding_layer", initializer=wv_matrix)
+        embedding = tf.cast(embedding, tf.float32)
+        embed = tf.nn.embedding_lookup(embedding, inputs)
+
+        use_gpu = False
+        for elem in device_lib.list_local_devices():
+            if elem.device_type == 'GPU':
+                use_gpu = True
+        if use_gpu:
+            cell =  tf.contrib.cudnn_rnn.CuDNNLSTM(100)
+            lstm_outputs, final_state = tf.nn.dynamic_rnn(cell, embed, dtype=tf.float32)#, #initial_state=initial_state)
+        else:
+            cell = tf.contrib.rnn.LSTMBlockFusedCell(100)
+            lstm_outputs, final_state = cell(embed, dtype=tf.float32)#, #initial_state=initial_state)
+
+        lstm_outputs = lstm_outputs[:,:,-1] # We only want the output from the very last LSTM (we are not trying to output a sequence)
+
+        # Make a layer to process LSTM layer (make network architecture LSTM -> DENSE -> SOFTMAX)
+        W = tf.Variable(tf.random_normal([self.embedding_size, self.n_words]))
+        b = tf.Variable(tf.random_normal([self.n_words]))
+
+        #lstm_outputs = tf.reshape(lstm_outputs, [-1, num_hidden])
+        logits = tf.matmul(lstm_outputs, W) + b
+
+        prediction = tf.nn.softmax(logits)
+
+        loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
+                              logits=logits, labels=labels))
+
+        optimizer = tf.train.AdamOptimizer(0.01)
+        train_step = optimizer.minimize(loss)
+
+        correct_pred = tf.equal(tf.argmax(prediction, 1), tf.argmax(labels, 1))
+        accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+
+        # Store TensorFlow variables so that we can run the graph when training / predicting
+        self.inputs = inputs
+        self.labels = labels
+        self.loss = loss
+        self.final_state = final_state
+        self.train_step = train_step
+        self.prediction = prediction
+        self.accuracy = accuracy
+
+    def fit(self, X, y, epochs = 50):
         '''
         Trains the model on the labelled set of sequences (X, y)
 
@@ -167,9 +254,7 @@ class PoetryRNNModel:
             
             print('\nTRAINING EPOCHS ', epochs_so_far + 1, '-',epochs_so_far + intermediate_epochs)
             print('-' * 50)
-            self.rnn_model.fit(X, y, batch_size=128, epochs=intermediate_epochs)
-            self.rnn_model.save_weights('res/model_weights.h5', overwrite=True)
-            
+            self.fit_model(X, y, epochs=intermediate_epochs, epoch_start=epochs_so_far+1)
             print('Language model sample:')
             print(self.sample())
             
@@ -177,12 +262,62 @@ class PoetryRNNModel:
 
         print("Finished training model on",epochs,"epochs")
 
+    def get_batches(self, X, y):
+        '''
+        Seperates X and y into minibatches of size `self.batch_size` 
+        Trailing elements that don't fit into a full batch are truncated
+        
+        Produces the a list of minibatche tuples (minibatch_X, minibatch_y)
+        '''
+
+        batches = []
+        n_batches = len(X)//self.batch_size
+        batched_X, batched_y = X[:n_batches*self.batch_size], y[:n_batches*self.batch_size] # We can't have batches with # training examples < batch_size
+        num_batches = len(batched_X)
+        for i in range(0, num_batches, self.batch_size):
+            batches.append([batched_X[i:i+self.batch_size], batched_y[i:i+self.batch_size]])
+        return batches
+
+    def fit_model(self, X, y, epochs=100, epoch_start=1):
+        '''
+        Fits the Recurrent Neural Network to (X, y)
+        epoch_start: Where to start counting epochs; used for printing epoch # after each epoch
+        '''
+
+        if self.keras:
+            self.rnn_model.fit(X, y, batch_size=self.batch_size, epochs=epochs)
+            self.rnn_model.save_weights('res/model_weights.h5', overwrite=True)
+        else:
+            with tf.Session() as sess:
+                sess.run(tf.global_variables_initializer())
+                n_batches = len(batches)
+                for epoch in range(epochs):
+                    start_time = time.time()
+
+                    train_acc = []
+                    train_loss = []
+                    for batch_num, (minibatch_x, minibatch_y) in enumerate(batches):
+                        feed = {self.inputs: minibatch_x,
+                                self.labels: minibatch_y}
+                        batch_loss, self.state, _, batch_acc = sess.run([self.loss, self.final_state, self.train_step, self.accuracy], feed_dict=feed)
+                        train_acc.append(batch_acc)
+                        train_loss.append(batch_loss)                
+                    
+                    end_time = time.time()
+
+                    print("Finished epoch {epoch} in {time}s: loss={loss}, accuracy={accuracy}".format(
+                        time="{0:.3g}".format(end_time-start_time),
+                        epoch=epoch+epoch_start,
+                        loss="{0:.4g}".format(np.mean(batch_loss)),
+                        accuracy="{0:.4g}".format(np.mean(train_acc))))        
+
     def sample(self, sample_length = 30):
         '''
         Produces a rap line of length max_len using model
         
         word2VecModel: a Word2VecModel that has been fit() on a set of sentences
         '''
+
         words = []
         
         # Boolean to track if previous word was punctuation
@@ -190,13 +325,21 @@ class PoetryRNNModel:
         prev_punctuation = False 
 
         # Sample the next word, feed new input back into network
-        for i in range(200): # 200 words or <END>, whichever comes first...
+        for i in range(200): # 200 words or <END>, whichever comes first
             padded_words = words[len(words)-self.seq_len:]
             while len(padded_words) < self.seq_len: # Pad rest of sequence with 0s
                 padded_words.append(0)
-            word_idxs = np.array(padded_words).reshape(1, self.seq_len) # model.predict() expects a Numpy array of shape (1, SEQ_LEN)
+            
+            if self.keras:
+                word_idxs = np.array(padded_words).reshape(1, self.seq_len) # model.predict() expects a Numpy array of shape (1, SEQ_LEN)
+                sample_prob = self.rnn_model.predict(word_idxs)
+            else:
+                 with tf.Session() as sess:
+                    sess.run(tf.global_variables_initializer())
+                    word_idxs = np.array(padded_words)#.reshape(1, self.seq_len) # model.predict() expects a Numpy array of shape (1, SEQ_LEN)
+                    feed = {self.inputs: [word_idxs for _ in range(self.batch_size)]}
+                    sample_prob = sess.run(self.prediction, feed) # [0] !!!
 
-            sample_prob = self.rnn_model.predict(word_idxs)
             idx = self.w2vModel.word_to_index['<UKN>']
             # Keep picking words until we get one that's not <UKN>
             # If the previous word was punctuation, keep picking words until we don't get punctuation
