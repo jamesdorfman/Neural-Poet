@@ -40,7 +40,7 @@ Encoding words with embeddings solves this issue. Word embeddings are high-dimen
 ### Which pre-trained word embeddings did you use?
 I used Google's collection of 3 million vectors that were pretrained on a Google News corpus which contained billions of words. These embeddings are *much* higher quality than those trained only on the poetry dataset. You can find them here: https://drive.google.com/file/d/0B7XkCwpI5KDYNlNUTTlSS21pQmM/edit
 
-### Why use a Keras embedding layer?
+### Why use an embedding layer?
 The corpus used to train the model consisted of over 20k words. Storing the individual Word2Vec embeddings for each word requires a lot of storage space and slows down training (since each word appears many times in the vocabulary). The embedding layer (the first layer in the network) takes in a word's index and outputs that word's Word2Vec embedding. This largly reduces the size of the training set, as it allows each high-dimensional vector to be replaced with a single integer ID.
 
 ### Handling infrequent words
